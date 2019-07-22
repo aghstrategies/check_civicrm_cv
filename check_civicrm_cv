@@ -1,0 +1,83 @@
+#!/usr/bin/env php
+<?php
+// Options:
+//   -p /path/to/civicrm/site - the directory of CiviCRM (similar to `cv --cwd`)
+//   -h - hide hidden system messages
+//   -t 2 - only show messages above a threshold
+//   -x /path/to/cv - the path to the `cv` executable
+//   -c 4 - the severity for a "critical" status
+//   -w 3 - the severity for a "warning" status
+$options = getopt('p:ht:x:c:w:');
+
+// Require a path
+if (empty($options['p'])) {
+  echo 'Path to CiviCRM is required, e.g. `check_civicrm_cv -p "/path/to/my/site"`';
+  exit(3);
+}
+
+$path = escapeshellarg($options['p']);
+
+$hideHidden = array_key_exists('h', $options);
+
+$threshold = array_key_exists('h', $options) ? $options['h'] : 2;
+
+$warning = array_key_exists('w', $options) ? $options['w'] : 3;
+
+$critical = array_key_exists('c', $options) ? $options['c'] : 4;
+
+$cv = (array_key_exists('x', $options) && is_executable($options['x'])) ? $options['x'] : 'cv';
+
+$raw = `$cv --cwd=$path api System.check`;
+
+$status = json_decode(trim($raw), TRUE);
+
+if (!empty($status['is_error'])) {
+  echo "UNKNOWN: System check error | {$status['error_message']}";
+  exit(3);
+}
+
+if (empty($status) || !is_array($status) || empty($status['values'])) {
+  echo 'UNKNOWN: System check not running';
+  exit(3);
+}
+
+$messages = [];
+
+foreach ($status['values'] as $msg) {
+  if ($hideHidden && !$msg['is_visible']) {
+    continue;
+  }
+  if ($msg['severity_id'] < $threshold) {
+    continue;
+  }
+
+  $messages[$msg['severity_id']][] = filter_var($msg['title'], FILTER_SANITIZE_STRING) . ': ' . filter_var($msg['message'], FILTER_SANITIZE_STRING);
+
+}
+
+// Put the messages with the highest severity first
+krsort($messages);
+
+$details = [];
+
+foreach ($messages as $severity => $sMessages) {
+  if (empty($exitVal)) {
+    if ($severity >= $critical) {
+      $exitVal = 2;
+    }
+    else {
+      $exitVal = ($severity >= $warning) ? 1 : 0;
+    }
+  }
+
+  $details = array_merge($details, $sMessages);
+}
+
+$returnSevs = [
+  'OK',
+  'WARNING',
+  'CRITICAL',
+];
+
+echo $returnSevs[$exitVal] . ': ' . implode(' / ', $details);
+exit($exitVal);
