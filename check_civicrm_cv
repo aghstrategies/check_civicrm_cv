@@ -7,6 +7,134 @@
 //   -x /path/to/cv - the path to the `cv` executable
 //   -c 4 - the severity for a "critical" status
 //   -w 3 - the severity for a "warning" status
+
+class cvCheck {
+
+  static $logLevels = [
+    'DEBUG',
+    'INFO',
+    'NOTICE',
+    'WARNING',
+    'ERROR',
+    'CRITICAL',
+    'ALERT',
+    'EMERGENCY',
+  ];
+
+  public $path;
+  public $hideHidden;
+  public $threshold;
+  public $warning;
+  public $critical;
+  public $cv;
+  public $messages = [];
+  public $details = [];
+  public $exitVal;
+
+  public function __construct($options) {
+    $this->path = escapeshellarg($options['p']);
+    $this->hideHidden = array_key_exists('h', $options);
+    $this->threshold = array_key_exists('h', $options) ? $options['h'] : 2;
+    $this->warning = array_key_exists('w', $options) ? $options['w'] : 3;
+    $this->critical = array_key_exists('c', $options) ? $options['c'] : 4;
+    $this->cv = (array_key_exists('x', $options) && is_executable($options['x'])) ? $options['x'] : 'cv';
+  }
+
+  public function runCheck() {
+    $status = $this->getApi();
+
+    if (!empty($status['is_error'])) {
+      echo "UNKNOWN: System check error | {$status['error_message']}";
+      exit(3);
+    }
+
+    if (empty($status) || !is_array($status) || empty($status['values'])) {
+      echo 'UNKNOWN: System check not running';
+      exit(3);
+    }
+
+    $this->extractMessages($status);
+    $this->prepDetails();
+  }
+
+  public function extractMessages($status) {
+    foreach ($status['values'] as $msg) {
+      if ($this->hideHidden && !$msg['is_visible']) {
+        continue;
+      }
+      if ($msg['severity_id'] < $this->threshold) {
+        continue;
+      }
+
+      $this->messages[$msg['severity_id']][] = filter_var($msg['title'], FILTER_SANITIZE_STRING) . ': ' . filter_var($msg['message'], FILTER_SANITIZE_STRING);
+    }
+
+    // Put the messages with the highest severity first
+    krsort($this->messages);
+  }
+
+  public function prepDetails() {
+    foreach ($this->messages as $severity => $sMessages) {
+      if (empty($this->exitVal)) {
+        $this->exitVal = $this->okWarnCrit($severity);
+
+        if (count($sMessages) == 1) {
+          $shortDesc = $sMessages[0];
+        }
+        else {
+          $shortDesc = count($sMessages) . ' messages';
+        }
+        $this->details[] = $this->okWarnCrit($severity, TRUE) . ': ' . $shortDesc;
+        $this->details[] = '==== System Status ====';
+      }
+
+      $dispSeverity = $this->okWarnCrit($severity, TRUE);
+
+      foreach ($sMessages as $sMessage) {
+        $this->details[] = "[$dispSeverity] " . self::$logLevels[$severity]. ': ' . $sMessage;
+      }
+    }
+
+  }
+
+  public function exitWithMessage() {
+    echo implode(PHP_EOL, $this->details);
+    exit($this->exitVal);
+  }
+
+  /**
+   * Get whether a severity is ok, warning, or critical
+   *
+   * @param int $severity
+   *   Severity to evaluate
+   * @param bool $string
+   *   Whether to return a string or integer
+   * @return mixed
+   *   An integer or string of OK, WARNING, or CRITICAL
+   */
+  function okWarnCrit($severity, $string = FALSE) {
+    $dispSeverities = [
+      'OK',
+      'WARNING',
+      'CRITICAL',
+    ];
+
+    if ($severity >= $this->critical) {
+      $return = 2;
+    }
+    else {
+      $return = ($severity >= $this->warning) ? 1 : 0;
+    }
+
+    return $string ? $dispSeverities[$return] : $return;
+  }
+
+  function getApi() {
+    $raw = `$this->cv --cwd=$this->path api System.check`;
+    return json_decode(trim($raw), TRUE);
+  }
+}
+
 $options = getopt('p:ht:x:c:w:');
 
 // Require a path
@@ -15,69 +143,6 @@ if (empty($options['p'])) {
   exit(3);
 }
 
-$path = escapeshellarg($options['p']);
-
-$hideHidden = array_key_exists('h', $options);
-
-$threshold = array_key_exists('h', $options) ? $options['h'] : 2;
-
-$warning = array_key_exists('w', $options) ? $options['w'] : 3;
-
-$critical = array_key_exists('c', $options) ? $options['c'] : 4;
-
-$cv = (array_key_exists('x', $options) && is_executable($options['x'])) ? $options['x'] : 'cv';
-
-$raw = `$cv --cwd=$path api System.check`;
-
-$status = json_decode(trim($raw), TRUE);
-
-if (!empty($status['is_error'])) {
-  echo "UNKNOWN: System check error | {$status['error_message']}";
-  exit(3);
-}
-
-if (empty($status) || !is_array($status) || empty($status['values'])) {
-  echo 'UNKNOWN: System check not running';
-  exit(3);
-}
-
-$messages = [];
-
-foreach ($status['values'] as $msg) {
-  if ($hideHidden && !$msg['is_visible']) {
-    continue;
-  }
-  if ($msg['severity_id'] < $threshold) {
-    continue;
-  }
-
-  $messages[$msg['severity_id']][] = filter_var($msg['title'], FILTER_SANITIZE_STRING) . ': ' . filter_var($msg['message'], FILTER_SANITIZE_STRING);
-
-}
-
-// Put the messages with the highest severity first
-krsort($messages);
-
-$details = [];
-
-foreach ($messages as $severity => $sMessages) {
-  if (empty($exitVal)) {
-    if ($severity >= $critical) {
-      $exitVal = 2;
-    }
-    else {
-      $exitVal = ($severity >= $warning) ? 1 : 0;
-    }
-  }
-
-  $details = array_merge($details, $sMessages);
-}
-
-$returnSevs = [
-  'OK',
-  'WARNING',
-  'CRITICAL',
-];
-
-echo $returnSevs[$exitVal] . ': ' . implode(' / ', $details);
-exit($exitVal);
+$cvCheck = new cvCheck($options);
+$cvCheck->runCheck();
+$cvCheck->exitWithMessage();
