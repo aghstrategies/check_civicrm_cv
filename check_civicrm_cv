@@ -15,6 +15,8 @@
 // | -t 2                    | the severity threshold for messages to appear     |
 // | -c 4                    | the severity for a "critical" exit status         |
 // | -w 3                    | the severity for a "warning" exit status          |
+// | -D                      | use Drush instead of cv                           |
+// | -W                      | use WP-CLI instead of cv                          |
 
 class cvCheck {
 
@@ -29,6 +31,7 @@ class cvCheck {
     'EMERGENCY',
   ];
 
+  public $cli;
   public $path;
   public $hideHidden;
   public $threshold;
@@ -40,12 +43,19 @@ class cvCheck {
   public $exitVal;
 
   public function __construct($options) {
+    // We default to cv, but we can support Drush with `-D` or WP-CLI with `-W`
+    if (array_key_exists('D', $options)) {
+      $this->cli = 'drush';
+    }
+    else {
+      $this->cli = array_key_exists('W', $options) ? 'wp' : 'cv';
+    }
     $this->path = escapeshellarg($options['p']);
     $this->hideHidden = array_key_exists('h', $options);
     $this->threshold = array_key_exists('h', $options) ? $options['h'] : 2;
     $this->warning = array_key_exists('w', $options) ? $options['w'] : 3;
     $this->critical = array_key_exists('c', $options) ? $options['c'] : 4;
-    $this->cv = (array_key_exists('x', $options) && is_executable($options['x'])) ? $options['x'] : 'cv';
+    $this->cv = (array_key_exists('x', $options) && is_executable($options['x'])) ? $options['x'] : $this->cli;
   }
 
   public function runCheck() {
@@ -138,12 +148,23 @@ class cvCheck {
   }
 
   function getApi() {
-    $raw = `$this->cv --cwd=$this->path api System.check`;
+    switch ($this->cli) {
+      case 'drush':
+        $raw = `$this->cv -r $this->path civicrm-api System.check --out=json`;
+        break;
+
+      case 'wp':
+        $raw = `$this->cv --path=$this->path civicrm api System.check --out=json`;
+        break;
+
+      default:
+        $raw = `$this->cv --cwd=$this->path api System.check`;
+    }
     return json_decode(trim($raw), TRUE);
   }
 }
 
-$options = getopt('p:ht:x:c:w:');
+$options = getopt('p:ht:x:c:w:DW');
 
 // Require a path
 if (empty($options['p'])) {

@@ -2,22 +2,26 @@
 
 This is a check designed to be executed locally on the server.  See https://github.com/MegaphoneJon/check_civicrm for an alternative that is designed for remote monitoring.
 
-|                      | check_civicrm                    | check_civicrm_cv  |
-| -------------------- | -------------------------------- | ----------------- |
-| Executed             | Anywhere                         | On the web server |
-| Dependencies         | PHP                              | PHP and cv        |
-| Credentials required | Site key and a contact's API key | None              |
+|                      | check_civicrm                    | check_civicrm_cv             |
+| -------------------- | -------------------------------- | ---------------------------- |
+| Executed             | Anywhere                         | On the web server            |
+| Dependencies         | PHP                              | PHP and cv, Drush, or WP-CLI |
+| Credentials required | Site key and a contact's API key | None                         |
+
+*Note: Drush and WP-CLI support are only lightly tested.  I just added them because the command is basically the same.*
 
 ## Arguments
 
 | Argument                | Description                                       |
 | ----------------------- | ------------------------------------------------- |
 | **-p /path/to/civicrm** | the directory of the site (similar to `cv --cwd`) |
-| -x /path/to/cv          | the path to the `cv` executable                   |
+| -x /path/to/cv          | the path to the `cv`, `drush`, or `wp` executable |
 | -h                      | hide hidden system check messages                 |
 | -t 2                    | the severity threshold for messages to appear     |
 | -c 4                    | the severity for a "critical" exit status         |
 | -w 3                    | the severity for a "warning" exit status          |
+| -D                      | use Drush instead of cv                           |
+| -W                      | use WP-CLI instead of cv                          |
 
 The only required argument is `-p`.
 
@@ -38,7 +42,7 @@ The severities used in CiviCRM are as defined in [PSR-3](https://github.com/php-
 
 To confirm that the check works, you can run the check command in the shell:
 
-> ./check_civicrm_cv -p /path/to/civicrm/site
+> ./check_civicrm_cv -p /path/to/civicrm
 
 You ought to get something along the lines of:
 
@@ -55,7 +59,15 @@ WARNING: 2 messages
 
 If you get something `UNKNOWN`, try this:
 
-> cv --cwd=/path/to/civicrm/site api System.check
+> cv --cwd=/path/to/civicrm api System.check
+
+or this:
+
+> drush -r /path/to/civicrm civicrm-api System.check --out=json
+
+or this:
+
+> wp --path=/path/to/civicrm civicrm api System.check --out=json
 
 That's the underlying command, and it should give you a more useful error.
 
