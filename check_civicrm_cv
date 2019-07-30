@@ -1,12 +1,20 @@
 #!/usr/bin/env php
 <?php
-// Options:
-//   -p /path/to/civicrm/site - the directory of CiviCRM (similar to `cv --cwd`)
-//   -h - hide hidden system messages
-//   -t 2 - only show messages above a threshold
-//   -x /path/to/cv - the path to the `cv` executable
-//   -c 4 - the severity for a "critical" status
-//   -w 3 - the severity for a "warning" status
+/**
+ * Copyright 2019 AGH Strategies, LLC
+ * Released under the Affero GNU Public License version 3
+ * but with NO WARRANTY: neither the implied warranty of merchantability
+ * nor fitness for a particular purpose
+ */
+
+// | Argument                | Description                                       |
+// | ----------------------- | ------------------------------------------------- |
+// | **-p /path/to/civicrm** | the directory of the site (similar to `cv --cwd`) |
+// | -x /path/to/cv          | the path to the `cv`, `drush`, or `wp` executable |
+// | -h                      | hide hidden system check messages                 |
+// | -t 2                    | the severity threshold for messages to appear     |
+// | -c 4                    | the severity for a "critical" exit status         |
+// | -w 3                    | the severity for a "warning" exit status          |
 
 class cvCheck {
 
