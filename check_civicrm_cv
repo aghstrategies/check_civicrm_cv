@@ -52,7 +52,7 @@ class cvCheck {
     }
     $this->path = escapeshellarg($options['p']);
     $this->hideHidden = array_key_exists('h', $options);
-    $this->threshold = array_key_exists('h', $options) ? $options['h'] : 2;
+    $this->threshold = array_key_exists('t', $options) ? $options['t'] : 2;
     $this->warning = array_key_exists('w', $options) ? $options['w'] : 3;
     $this->critical = array_key_exists('c', $options) ? $options['c'] : 4;
     $this->cv = (array_key_exists('x', $options) && is_executable($options['x'])) ? $options['x'] : $this->cli;
